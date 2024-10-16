@@ -1,16 +1,14 @@
 <template>
   <div>
-    <h1 class="title-text">Donate</h1>
+    <h1 class="title-text">
+      {{ $vuetify.lang.t("$vuetify.donate.name") }}
+    </h1>
     <p style="color: #999; margin-top: 0.5rem; margin-bottom: 1.5rem">
-      You can support our efforts to keep the internet free with a donation!
+      {{ $vuetify.lang.t("$vuetify.donate.subtitle") }}
     </p>
     <v-btn class="mainAltButton mb-2" :href="patreonLink" target="_blank">
       <v-icon style="margin-right: 0.5em">mdi-patreon</v-icon>
       Patreon
-    </v-btn>
-    <v-btn class="mainAltButton mb-2" :to="yoomoneyLink">
-      <v-icon style="margin-right: 0.5em">mdi-cash-multiple</v-icon>
-      Yoomoney
     </v-btn>
     <v-btn class="mainAltButton mb-2" :to="cryptoLink">
       <v-icon style="margin-right: 0.5em">mdi-bitcoin</v-icon>
@@ -32,7 +30,6 @@ export default {
   },
   data: () => ({
     patreonLink: "https://www.patreon.com/returnyoutubedislike",
-    yoomoneyLink: "/pay/yoomoney",
     cryptoLink: "/pay/crypto",
   }),
 };

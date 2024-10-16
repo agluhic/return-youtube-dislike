@@ -25,12 +25,12 @@
         />
       </svg>
 
-      <h1 class="title-text">Return YouTube Dislike</h1>
-      <div class="mb-4" style="color: #999">
-        <p style="margin-top: 0">
-          Browser extension and an API that shows you dislikes on Youtube
-        </p>
-      </div>
+      <h1 class="title-text">
+        {{ $vuetify.lang.t("$vuetify.home.title") }}
+      </h1>
+      <p class="mb-4" style="color: #999; margin-top: 0">
+        {{ $vuetify.lang.t("$vuetify.home.subtitle") }}
+      </p>
 
       <v-btn
         :to="installLink"
@@ -38,7 +38,7 @@
         style="font-size: 1.5em; padding: 1em; margin-bottom: 0.5em"
       >
         <v-icon large class="mr-6">mdi-tray-arrow-down</v-icon>
-        Install
+        {{ $vuetify.lang.t("$vuetify.install.name") }}
       </v-btn>
 
       <br />
@@ -54,28 +54,32 @@
       </v-btn>
     </div>
 
-<!--    <div class="mb-4" style="color: #999">-->
-<!--      Get dislikes manually: <input placeholder=" Video URL">-->
-<!--      <p id="output"></p>-->
-<!--    </div>-->
+    <!--    <div class="mb-4" style="color: #999">-->
+    <!--      Get dislikes manually: <input placeholder=" Video URL">-->
+    <!--      <p id="output"></p>-->
+    <!--    </div>-->
 
     <v-spacer />
     <div id="support-ukraine" class="d-flex flex-column items-center py-2">
       <h3 class="mb-2">
-        <v-img src="/ukraine-flag-xs.png" width="40px"></v-img>
-        <a href="https://helpukrainewin.org/">Support Ukraine</a>
+        <v-img src="/ukraine-flag-xs.webp" width="42px" height="28px"></v-img>
+        <a href="https://u24.gov.ua/">
+          {{ $vuetify.lang.t("$vuetify.home.ukraine") }}
+        </a>
       </h3>
     </div>
 
-    <div id="cool-people" class="d-flex flex-column items-center py-8">
+    <div id="financiers" class="d-flex flex-column items-center py-8">
       <h3 class="mb-4">
         <v-icon class="mb-2">mdi-heart</v-icon>
-        Sponsors
+        {{ $vuetify.lang.t("$vuetify.home.sponsors") }}
       </h3>
       <v-row class="justify-center mx-auto">
         <p v-for="sponsor in sponsors" :key="sponsor.name" class="sponsor">
           <a
-            :style="sponsor.link ? { cursor: 'pointer' } : { cursor: 'default' }"
+            :style="
+              sponsor.link ? { cursor: 'pointer' } : { cursor: 'default' }
+            "
             :href="sponsor.link"
             rel="sponsored"
           >
@@ -104,33 +108,31 @@ export default {
       githubLink: "https://github.com/Anarios/return-youtube-dislike",
       discordLink: "https://discord.gg/mYnESY4Md5",
       sponsors: [
-        { name: "Piepacker", link: "https://piepacker.com/" },
-        { name: "nodetube", link: "https://github.com/mayeaux/nodetube" },
-        { name: "trig404" },
         {
-          name: "Peter33",
-          link: "https://www.youtube.com/watch?v=G5kzUpWAusI",
+          name: "Become our sponsor and be listed here",
+          link: "https://www.patreon.com/join/returnyoutubedislike/checkout?rid=8008601",
         },
-        {
-          name: "Seed4.Me VPN",
-          link: "https://www.seed4.me/users/register?gift=ReturnYoutubeDislike",
-        },
-        {
-          name: "PocketTube",
-          link: "https://yousub.info/?utm_source=returnyoutubedislike"
-        }
       ],
     };
   },
   mounted() {
-    const YOUTUBE_REGEX = /(?:http:|https:)*?\/\/(?:www\.|)(?:youtube\.com|m\.youtube\.com|youtu\.|youtube-nocookie\.com).*(?:v=|v%3D|v\/|(?:a|p)\/(?:a|u)\/\d.*\/|watch\?|vi(?:=|\/)|\/embed\/|oembed\?|be\/|e\/)([^&?%#\/\n]*)/;
+    const YOUTUBE_REGEX =
+      /(?:http:|https:)*?\/\/(?:www\.|)(?:youtube\.com|m\.youtube\.com|youtu\.|youtube-nocookie\.com).*(?:v=|v%3D|v\/|(?:a|p)\/(?:a|u)\/\d.*\/|watch\?|vi(?:=|\/)|\/embed\/|oembed\?|be\/|e\/)([^&?%#/\n]*)/;
     let lastVideoId = "";
     window.oninput = (e) => {
-      const videoId = (e.target.value.match(YOUTUBE_REGEX) || {})[1] || e.target.value;
+      const videoId =
+        (e.target.value.match(YOUTUBE_REGEX) || {})[1] || e.target.value;
       if (videoId !== lastVideoId && videoId.length === 11) {
-        fetch("https://returnyoutubedislikeapi.com/votes?videoId=" + (lastVideoId = videoId))
-          .then(resp => resp.json())
-          .then(data => document.getElementById("output").innerText = "Likes=" + data.likes + " Dislikes=" + data.dislikes);
+        fetch(
+          "https://returnyoutubedislikeapi.com/votes?videoId=" +
+            (lastVideoId = videoId),
+        )
+          .then((resp) => resp.json())
+          .then(
+            (data) =>
+              (document.getElementById("output").innerText =
+                "Likes=" + data.likes + " Dislikes=" + data.dislikes),
+          );
       }
     };
   },
@@ -160,7 +162,8 @@ input {
   stroke: #f44;
   transition-property: opacity, transform;
   transform: scale(0) rotate(180deg);
-  animation: popin 1s 0.3s ease-in-out 1 forwards,
+  animation:
+    popin 1s 0.3s ease-in-out 1 forwards,
     tap 0.3s 1.7s ease-in-out 1 forwards;
 }
 
