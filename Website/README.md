@@ -1,3 +1,5 @@
+Read this in other languages: [Nederlands](READMEnl.md), [Türkçe](READMEtr.md), [Deutsch](READMEde.md)
+
 # return-youtube-dislike-site
 
 ## Build Setup
@@ -23,11 +25,13 @@ $ npm run generate
 For detailed explanation on how things work, check out the [documentation](https://nuxtjs.org).
 
 ## Recommended VSCode Setup
- - [ESLint](https://marketplace.visualstudio.com/items?itemName=dbaeumer.vscode-eslint) `ext install dbaeumer.vscode-eslint`
- - [Prettier](https://marketplace.visualstudio.com/items?itemName=esbenp.prettier-vscode) `ext install esbenp.prettier-vscode`
- - [Vetur](https://marketplace.visualstudio.com/items?itemName=octref.vetur)
 
->`Ctrl(Cmd)` + `Shift` + `P` > Open Settings (JSON)
+- [ESLint](https://marketplace.visualstudio.com/items?itemName=dbaeumer.vscode-eslint) `ext install dbaeumer.vscode-eslint`
+- [Prettier](https://marketplace.visualstudio.com/items?itemName=esbenp.prettier-vscode) `ext install esbenp.prettier-vscode`
+- [Vetur](https://marketplace.visualstudio.com/items?itemName=octref.vetur)
+
+> `Ctrl(Cmd)` + `Shift` + `P` > Open Settings (JSON)
+
 ```
 "editor.formatOnSave": true,
 "editor.codeActionsOnSave": {
@@ -57,7 +61,6 @@ More information about the usage of this directory in [the documentation](https:
 Layouts are a great help when you want to change the look and feel of your Nuxt app, whether you want to include a sidebar or have distinct layouts for mobile and desktop.
 
 More information about the usage of this directory in [the documentation](https://nuxtjs.org/docs/2.x/directory-structure/layouts).
-
 
 ### `pages`
 

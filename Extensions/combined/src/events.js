@@ -1,5 +1,16 @@
-import { getBrowser, getVideoId, numberFormat, cLog } from "./utils";
-import { checkForSignInButton, getButtons } from "./buttons";
+import {
+  getBrowser,
+  getVideoId,
+  numberFormat,
+  cLog,
+  createObserver,
+} from "./utils";
+import {
+  checkForSignInButton,
+  getButtons,
+  getDislikeButton,
+  getLikeButton,
+} from "./buttons";
 import {
   NEUTRAL_STATE,
   LIKED_STATE,
@@ -8,6 +19,7 @@ import {
   extConfig,
   storedData,
   setLikes,
+  getLikeCountFromButton,
 } from "./state";
 import { createRateBar } from "./bar";
 
@@ -21,30 +33,9 @@ function sendVote(vote) {
   }
 }
 
-function sendVideoIds() {
-  let links = Array.from(
-    document.getElementsByClassName(
-      "yt-simple-endpoint ytd-compact-video-renderer"
-    )
-  ).concat(
-    Array.from(
-      document.getElementsByClassName("yt-simple-endpoint ytd-thumbnail")
-    )
-  );
-  // Also try mobile
-  if (links.length < 1)
-    links = Array.from(
-      document.querySelectorAll(
-        ".large-media-item-metadata > a, a.large-media-item-thumbnail-container"
-      )
-    );
-  const ids = links
-    .filter((x) => x.href && x.href.indexOf("/watch?v=") > 0)
-    .map((x) => getVideoId(x.href));
-  getBrowser().runtime.sendMessage({
-    message: "send_links",
-    videoIds: ids,
-  });
+function updateDOMDislikes() {
+  setDislikes(numberFormat(storedData.dislikes));
+  createRateBar(storedData.likes, storedData.dislikes);
 }
 
 function likeClicked() {
@@ -53,19 +44,24 @@ function likeClicked() {
       sendVote(1);
       if (storedData.dislikes > 0) storedData.dislikes--;
       storedData.likes++;
-      createRateBar(storedData.likes, storedData.dislikes);
-      setDislikes(numberFormat(storedData.dislikes));
+      updateDOMDislikes();
       storedData.previousState = LIKED_STATE;
     } else if (storedData.previousState === NEUTRAL_STATE) {
       sendVote(1);
       storedData.likes++;
-      createRateBar(storedData.likes, storedData.dislikes);
+      updateDOMDislikes();
       storedData.previousState = LIKED_STATE;
     } else if ((storedData.previousState = LIKED_STATE)) {
       sendVote(0);
       if (storedData.likes > 0) storedData.likes--;
-      createRateBar(storedData.likes, storedData.dislikes);
+      updateDOMDislikes();
       storedData.previousState = NEUTRAL_STATE;
+    }
+    if (extConfig.numberDisplayReformatLikes === true) {
+      const nativeLikes = getLikeCountFromButton();
+      if (nativeLikes !== false) {
+        setLikes(numberFormat(nativeLikes));
+      }
     }
   }
 }
@@ -75,41 +71,74 @@ function dislikeClicked() {
     if (storedData.previousState === NEUTRAL_STATE) {
       sendVote(-1);
       storedData.dislikes++;
-      setDislikes(numberFormat(storedData.dislikes));
-      createRateBar(storedData.likes, storedData.dislikes);
+      updateDOMDislikes();
       storedData.previousState = DISLIKED_STATE;
     } else if (storedData.previousState === DISLIKED_STATE) {
       sendVote(0);
       if (storedData.dislikes > 0) storedData.dislikes--;
-      setDislikes(numberFormat(storedData.dislikes));
-      createRateBar(storedData.likes, storedData.dislikes);
+      updateDOMDislikes();
       storedData.previousState = NEUTRAL_STATE;
     } else if (storedData.previousState === LIKED_STATE) {
       sendVote(-1);
       if (storedData.likes > 0) storedData.likes--;
       storedData.dislikes++;
-      setDislikes(numberFormat(storedData.dislikes));
-      createRateBar(storedData.likes, storedData.dislikes);
+      updateDOMDislikes();
       storedData.previousState = DISLIKED_STATE;
+      if (extConfig.numberDisplayReformatLikes === true) {
+        const nativeLikes = getLikeCountFromButton();
+        if (nativeLikes !== false) {
+          setLikes(numberFormat(nativeLikes));
+        }
+      }
     }
   }
 }
 
 function addLikeDislikeEventListener() {
-  const buttons = getButtons();
-  if (!window.returnDislikeButtonlistenersSet) {
-    buttons.children[0].addEventListener("click", likeClicked);
-    buttons.children[1].addEventListener("click", dislikeClicked);
-    buttons.children[0].addEventListener("touchstart", likeClicked);
-    buttons.children[1].addEventListener("touchstart", dislikeClicked);
-    window.returnDislikeButtonlistenersSet = true;
+  if (window.rydPreNavigateLikeButton !== getLikeButton()) {
+    getLikeButton().addEventListener("click", likeClicked);
+    getLikeButton().addEventListener("touchstart", likeClicked);
+    if (getDislikeButton()) {
+      getDislikeButton().addEventListener("click", dislikeClicked);
+      getDislikeButton().addEventListener("touchstart", dislikeClicked);
+      getDislikeButton().addEventListener("focusin", updateDOMDislikes);
+      getDislikeButton().addEventListener("focusout", updateDOMDislikes);
+    }
+    window.rydPreNavigateLikeButton = getLikeButton();
+  }
+}
+
+let smartimationObserver = null;
+
+function createSmartimationObserver() {
+  if (!smartimationObserver) {
+    smartimationObserver = createObserver(
+      {
+        attributes: true,
+        subtree: true,
+        childList: true,
+      },
+      updateDOMDislikes,
+    );
+    smartimationObserver.container = null;
+  }
+
+  const smartimationContainer = getButtons().querySelector("yt-smartimation");
+  if (
+    smartimationContainer &&
+    smartimationObserver.container != smartimationContainer
+  ) {
+    cLog("Initializing smartimation mutation observer");
+    smartimationObserver.disconnect();
+    smartimationObserver.observe(smartimationContainer);
+    smartimationObserver.container = smartimationContainer;
   }
 }
 
 function storageChangeHandler(changes, area) {
   if (changes.disableVoteSubmission !== undefined) {
     handleDisableVoteSubmissionChangeEvent(
-      changes.disableVoteSubmission.newValue
+      changes.disableVoteSubmission.newValue,
     );
   }
   if (changes.coloredThumbs !== undefined) {
@@ -121,14 +150,13 @@ function storageChangeHandler(changes, area) {
   if (changes.colorTheme !== undefined) {
     handleColorThemeChangeEvent(changes.colorTheme.newValue);
   }
-
-  if (changes.numberDisplayRoundDown !== undefined) {
-    handleNumberDisplayRoundDownChangeEvent(
-      changes.numberDisplayRoundDown.newValue
-    );
-  }
   if (changes.numberDisplayFormat !== undefined) {
     handleNumberDisplayFormatChangeEvent(changes.numberDisplayFormat.newValue);
+  }
+  if (changes.numberDisplayReformatLikes !== undefined) {
+    handleNumberDisplayReformatLikesChangeEvent(
+      changes.numberDisplayReformatLikes.newValue,
+    );
   }
 }
 
@@ -153,15 +181,15 @@ function handleNumberDisplayFormatChangeEvent(value) {
   extConfig.numberDisplayFormat = value;
 }
 
-function handleNumberDisplayRoundDownChangeEvent(value) {
-  extConfig.numberDisplayRoundDown = value;
+function handleNumberDisplayReformatLikesChangeEvent(value) {
+  extConfig.numberDisplayReformatLikes = value;
 }
 
 export {
   sendVote,
-  sendVideoIds,
   likeClicked,
   dislikeClicked,
   addLikeDislikeEventListener,
+  createSmartimationObserver,
   storageChangeHandler,
 };

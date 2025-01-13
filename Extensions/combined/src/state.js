@@ -1,4 +1,4 @@
-import { getLikeButton, getDislikeButton, getButtons } from "./buttons";
+import { getLikeButton, getDislikeButton, getButtons, getLikeTextContainer, getDislikeTextContainer } from "./buttons";
 import { createRateBar } from "./bar";
 import {
   getBrowser,
@@ -6,8 +6,10 @@ import {
   cLog,
   numberFormat,
   getColorFromTheme,
+  querySelector,
+  localize,
+  createObserver,
 } from "./utils";
-import { sendVideoIds } from "./events";
 
 //TODO: Do not duplicate here and in ryd.background.js
 const apiUrl = "https://returnyoutubedislikeapi.com";
@@ -15,15 +17,43 @@ const LIKED_STATE = "LIKED_STATE";
 const DISLIKED_STATE = "DISLIKED_STATE";
 const NEUTRAL_STATE = "NEUTRAL_STATE";
 
-const DISLIKES_DISABLED_TEXT = "DISLIKES DISABLED";
-
 let extConfig = {
   disableVoteSubmission: false,
+  disableLogging: false,
   coloredThumbs: false,
   coloredBar: false,
   colorTheme: "classic",
   numberDisplayFormat: "compactShort",
-  numberDisplayRoundDown: true,
+  showTooltipPercentage: false,
+  tooltipPercentageMode: "dash_like",
+  numberDisplayReformatLikes: false,
+  selectors: {
+    dislikeTextContainer: [],
+    likeTextContainer: [],
+    buttons: {
+      shorts: {
+        mobile: [],
+        desktop: [],
+      },
+      regular: {
+        mobile: [],
+        desktopMenu: [],
+        desktopNoMenu: [],
+      },
+      likeButton: {
+        segmented: [],
+        segmentedGetButtons: [],
+        notSegmented: [],
+      },
+      dislikeButton: {
+        segmented: [],
+        segmentedGetButtons: [],
+        notSegmented: [],
+      },
+    },
+    menuContainer: [],
+    roundedDesign: [],
+  },
 };
 
 let storedData = {
@@ -31,8 +61,6 @@ let storedData = {
   dislikes: 0,
   previousState: NEUTRAL_STATE,
 };
-
-let likesDisabledState = true;
 
 function isMobile() {
   return location.hostname == "m.youtube.com";
@@ -42,24 +70,72 @@ function isShorts() {
   return location.pathname.startsWith("/shorts");
 }
 
+function isNewDesign() {
+  return document.getElementById("comment-teaser") !== null;
+}
+
+function isRoundedDesign() {
+  return querySelector(extConfig.selectors.roundedDesign) !== null;
+}
+
+let shortsObserver = null;
+
+if (isShorts() && !shortsObserver) {
+  cLog("Initializing shorts mutation observer");
+  shortsObserver = createObserver(
+    {
+      attributes: true,
+    },
+    (mutationList) => {
+      mutationList.forEach((mutation) => {
+        if (
+          mutation.type === "attributes" &&
+          mutation.target.nodeName === "TP-YT-PAPER-BUTTON" &&
+          mutation.target.id === "button"
+        ) {
+          // cLog('Short thumb button status changed');
+          if (mutation.target.getAttribute("aria-pressed") === "true") {
+            mutation.target.style.color =
+              mutation.target.parentElement.parentElement.id === "like-button"
+                ? getColorFromTheme(true)
+                : getColorFromTheme(false);
+          } else {
+            mutation.target.style.color = "unset";
+          }
+          return;
+        }
+        cLog("Unexpected mutation observer event: " + mutation.target + mutation.type);
+      });
+    },
+  );
+}
+
+function isLikesDisabled() {
+  // return true if the like button's text doesn't contain any number
+  if (isMobile()) {
+    return /^\D*$/.test(getButtons().children[0].querySelector(".button-renderer-text").innerText);
+  }
+  return /^\D*$/.test(getLikeTextContainer().innerText);
+}
+
 function isVideoLiked() {
   if (isMobile()) {
-    return (
-      getLikeButton().querySelector("button").getAttribute("aria-label") ==
-      "true"
-    );
+    return getLikeButton().querySelector("button").getAttribute("aria-label") === "true";
   }
-  return getLikeButton().classList.contains("style-default-active");
+  return (
+    getLikeButton().classList.contains("style-default-active") ||
+    getLikeButton().querySelector("button")?.getAttribute("aria-pressed") === "true"
+  );
 }
 
 function isVideoDisliked() {
   if (isMobile()) {
-    return (
-      getDislikeButton().querySelector("button").getAttribute("aria-label") ==
-      "true"
-    );
+    return getDislikeButton().querySelector("button").getAttribute("aria-label") === "true";
   }
-  return getDislikeButton().classList.contains("style-default-active");
+  return (
+    getDislikeButton().classList.contains("style-default-active") ||
+    getDislikeButton().querySelector("button")?.getAttribute("aria-pressed") === "true"
+  );
 }
 
 function getState(storedData) {
@@ -74,103 +150,150 @@ function getState(storedData) {
 
 //---   Sets The Likes And Dislikes Values   ---//
 function setLikes(likesCount) {
-  getButtons().children[0].querySelector("#text").innerText = likesCount;
+  cLog(`SET likes ${likesCount}`);
+  getLikeTextContainer().innerText = likesCount;
 }
 
 function setDislikes(dislikesCount) {
-  if (!likesDisabledState) {
+  cLog(`SET dislikes ${dislikesCount}`);
+
+  const _container = getDislikeTextContainer();
+  _container?.removeAttribute("is-empty");
+
+  let _dislikeText
+  if (!isLikesDisabled()) {
     if (isMobile()) {
-      getButtons().children[1].querySelector(
-        ".button-renderer-text"
-      ).innerText = dislikesCount;
+      getButtons().children[1].querySelector(".button-renderer-text").innerText = dislikesCount;
       return;
     }
-    getButtons().children[1].querySelector("#text").innerText = dislikesCount;
+    _dislikeText = dislikesCount;
   } else {
     cLog("likes count disabled by creator");
     if (isMobile()) {
-      getButtons().children[1].querySelector(
-        ".button-renderer-text"
-      ).innerText = DISLIKES_DISABLED_TEXT;
+      getButtons().children[1].querySelector(".button-renderer-text").innerText = localize("TextLikesDisabled");
       return;
     }
-    getButtons().children[1].querySelector("#text").innerText =
-      DISLIKES_DISABLED_TEXT;
+    _dislikeText = localize("TextLikesDisabled");
+  }
+
+  if (_dislikeText != null && _container?.innerText !== _dislikeText) {
+    _container.innerText = _dislikeText;
   }
 }
 
 function getLikeCountFromButton() {
-  if (isShorts()) {
-    //Youtube Shorts don't work with this query. It's not nessecary; we can skip it and still see the results.
-    //It should be possible to fix this function, but it's not critical to showing the dislike count.
-    return 0;
+  try {
+    if (isShorts()) {
+      //Youtube Shorts don't work with this query. It's not necessary; we can skip it and still see the results.
+      //It should be possible to fix this function, but it's not critical to showing the dislike count.
+      return false;
+    }
+
+    let likeButton =
+      getLikeButton().querySelector("yt-formatted-string#text") ?? getLikeButton().querySelector("button");
+
+    let likesStr = likeButton.getAttribute("aria-label").replace(/\D/g, "");
+    return likesStr.length > 0 ? parseInt(likesStr) : false;
+  } catch {
+    return false;
   }
-  let likesStr = getLikeButton()
-    .querySelector("button")
-    .getAttribute("aria-label")
-    .replace(/\D/g, "");
-  return likesStr.length > 0 ? parseInt(likesStr) : false;
 }
 
 function processResponse(response, storedData) {
   const formattedDislike = numberFormat(response.dislikes);
   setDislikes(formattedDislike);
+  if (extConfig.numberDisplayReformatLikes === true) {
+    const nativeLikes = getLikeCountFromButton();
+    if (nativeLikes !== false) {
+      setLikes(numberFormat(nativeLikes));
+    }
+  }
   storedData.dislikes = parseInt(response.dislikes);
   storedData.likes = getLikeCountFromButton() || parseInt(response.likes);
   createRateBar(storedData.likes, storedData.dislikes);
   if (extConfig.coloredThumbs === true) {
-    getLikeButton().style.color = getColorFromTheme(true);
-    getDislikeButton().style.color = getColorFromTheme(false);
+    if (isShorts()) {
+      // for shorts, leave deactivated buttons in default color
+      let shortLikeButton = getLikeButton().querySelector("tp-yt-paper-button#button");
+      let shortDislikeButton = getDislikeButton().querySelector("tp-yt-paper-button#button");
+      if (shortLikeButton.getAttribute("aria-pressed") === "true") {
+        shortLikeButton.style.color = getColorFromTheme(true);
+      }
+      if (shortDislikeButton.getAttribute("aria-pressed") === "true") {
+        shortDislikeButton.style.color = getColorFromTheme(false);
+      }
+      shortsObserver.observe(shortLikeButton);
+      shortsObserver.observe(shortDislikeButton);
+    } else {
+      getLikeButton().style.color = getColorFromTheme(true);
+      getDislikeButton().style.color = getColorFromTheme(false);
+    }
   }
+  //Temporary disabling this - it breaks all places where getButtons()[1] is used
+  // createStarRating(response.rating, isMobile());
+}
+
+// Tells the user if the API is down
+function displayError(error) {
+  getDislikeTextContainer().innerText = localize("textTempUnavailable");
 }
 
 async function setState(storedData) {
-  storedData.previousState = isVideoDisliked()
-    ? DISLIKED_STATE
-    : isVideoLiked()
-    ? LIKED_STATE
-    : NEUTRAL_STATE;
+  storedData.previousState = isVideoDisliked() ? DISLIKED_STATE : isVideoLiked() ? LIKED_STATE : NEUTRAL_STATE;
   let statsSet = false;
+  cLog("Video is loaded. Adding buttons...");
 
   let videoId = getVideoId(window.location.href);
   let likeCount = getLikeCountFromButton() || null;
 
-  let response = await fetch(
-    `${apiUrl}/votes?videoId=${videoId}&likeCount=${likeCount || ""}`,
-    {
-      method: "GET",
-      headers: {
-        Accept: "application/json",
-      },
-    }
-  )
+  let response = await fetch(`${apiUrl}/votes?videoId=${videoId}&likeCount=${likeCount || ""}`, {
+    method: "GET",
+    headers: {
+      Accept: "application/json",
+    },
+  })
+    .then((response) => {
+      if (!response.ok) displayError(response.error);
+      return response;
+    })
     .then((response) => response.json())
-    .catch();
+    .catch(displayError);
   cLog("response from api:");
   cLog(JSON.stringify(response));
-  likesDisabledState =
-    numberFormat(response.dislikes) == 0 &&
-    numberFormat(response.likes) == 0 &&
-    numberFormat(response.viewCount) == 0;
   if (response !== undefined && !("traceId" in response) && !statsSet) {
     processResponse(response, storedData);
   }
 }
 
-function setInitialState() {
-  setState(storedData);
-  setTimeout(() => {
-    sendVideoIds();
-  }, 1500);
+async function setInitialState() {
+  await setState(storedData);
 }
 
-function initExtConfig() {
+async function initExtConfig() {
   initializeDisableVoteSubmission();
+  initializeDisableLogging();
   initializeColoredThumbs();
   initializeColoredBar();
   initializeColorTheme();
   initializeNumberDisplayFormat();
-  initializeNumberDisplayRoundDown();
+  initializeTooltipPercentage();
+  initializeTooltipPercentageMode();
+  initializeNumberDisplayReformatLikes();
+  await initializeSelectors();
+}
+
+async function initializeSelectors() {
+  console.log("initializing selectors");
+  let result = await fetch(`${apiUrl}/configs/selectors`, {
+    method: "GET",
+    headers: {
+      Accept: "application/json",
+    },
+  })
+    .then((response) => response.json())
+    .catch((error) => {});
+  extConfig.selectors = result ?? extConfig.selectors;
+  console.log(result);
 }
 
 function initializeDisableVoteSubmission() {
@@ -179,6 +302,16 @@ function initializeDisableVoteSubmission() {
       getBrowser().storage.sync.set({ disableVoteSubmission: false });
     } else {
       extConfig.disableVoteSubmission = res.disableVoteSubmission;
+    }
+  });
+}
+
+function initializeDisableLogging() {
+  getBrowser().storage.sync.get(["disableLogging"], (res) => {
+    if (res.disableLogging === undefined) {
+      getBrowser().storage.sync.set({ disableLogging: true });
+    } else {
+      extConfig.disableLogging = res.disableLogging;
     }
   });
 }
@@ -203,16 +336,6 @@ function initializeColoredBar() {
   });
 }
 
-function initializeNumberDisplayRoundDown() {
-  getBrowser().storage.sync.get(["numberDisplayRoundDown"], (res) => {
-    if (res.numberDisplayRoundDown === undefined) {
-      getBrowser().storage.sync.set({ numberDisplayRoundDown: true });
-    } else {
-      extConfig.numberDisplayRoundDown = res.numberDisplayRoundDown;
-    }
-  });
-}
-
 function initializeColorTheme() {
   getBrowser().storage.sync.get(["colorTheme"], (res) => {
     if (res.colorTheme === undefined) {
@@ -233,11 +356,43 @@ function initializeNumberDisplayFormat() {
   });
 }
 
+function initializeTooltipPercentage() {
+  getBrowser().storage.sync.get(["showTooltipPercentage"], (res) => {
+    if (res.showTooltipPercentage === undefined) {
+      getBrowser().storage.sync.set({ showTooltipPercentage: false });
+    } else {
+      extConfig.showTooltipPercentage = res.showTooltipPercentage;
+    }
+  });
+}
+
+function initializeTooltipPercentageMode() {
+  getBrowser().storage.sync.get(["tooltipPercentageMode"], (res) => {
+    if (res.tooltipPercentageMode === undefined) {
+      getBrowser().storage.sync.set({ tooltipPercentageMode: "dash_like" });
+    } else {
+      extConfig.tooltipPercentageMode = res.tooltipPercentageMode;
+    }
+  });
+}
+
+function initializeNumberDisplayReformatLikes() {
+  getBrowser().storage.sync.get(["numberDisplayReformatLikes"], (res) => {
+    if (res.numberDisplayReformatLikes === undefined) {
+      getBrowser().storage.sync.set({ numberDisplayReformatLikes: false });
+    } else {
+      extConfig.numberDisplayReformatLikes = res.numberDisplayReformatLikes;
+    }
+  });
+}
+
 export {
   isMobile,
   isShorts,
   isVideoDisliked,
   isVideoLiked,
+  isNewDesign,
+  isRoundedDesign,
   getState,
   setState,
   setInitialState,
@@ -250,5 +405,5 @@ export {
   extConfig,
   initExtConfig,
   storedData,
-  likesDisabledState,
+  isLikesDisabled,
 };
